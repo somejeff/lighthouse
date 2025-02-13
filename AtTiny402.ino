@@ -70,7 +70,8 @@ uint16_t readLightLevel() {
   */
 
   VREF.CTRLA = VREF_ADC0REFSEL_2V5_gc;               // Set the Voltage Reference for the ADC to a 2.5V
-  ADC0.CTRLA = ADC_ENABLE_bm | ADC_RESSEL_10BIT_gc;  // Enable ADC, 10-bit resolution
+  ADC0.CTRLA = ADC_ENABLE_bm | ADC_RESSEL_8BIT_gc;  // Enable ADC, 8-bit resolution
+  ADC0.CTRLA |= ADC_FREERUN_bm;                      // Enable free-running mode
   ADC0.MUXPOS = PHOTO_PIN;                           // Select PA3 as ADC input
   ADC0.COMMAND = ADC_STCONV_bm;                      // start converstion
   // samples are taken here
@@ -90,14 +91,14 @@ void startLighthouse() {
   TCA0.SINGLE.CTRLB = TCA_SINGLE_CMP1EN_bm | TCA_SINGLE_WGMODE_DSBOTTOM_gc;  // set the TCA0 as a PWM
   TCA0.SINGLE.PER = 1023;                                                    // Set the number of clock cycles as the period
   TCA0.SINGLE.CMP1 = brightness[brightnessIndex];                            // set the initial brightness
-  TCA0.SINGLE.CTRLA = TCA_SINGLE_ENABLE_bm | TCA_SINGLE_CLKSEL_DIV64_gc;      // enable the PWM and only count every 1024 clock cycles
+  TCA0.SINGLE.CTRLA = TCA_SINGLE_ENABLE_bm | TCA_SINGLE_CLKSEL_DIV64_gc;     // enable the PWM and only count every 1024 clock cycles
 
   // The RTC is how quick we should iterate thru the brightness array
-  RTC.CLKSEL = RTC_CLKSEL_OSC32K_gc;  // enable the lowest powererd clock as possible
-  RTC.PITINTCTRL = RTC_PI_bm; // 
-  RTC.PITCTRLA = RTC_PERIOD_CYC1024_gc | RTC_PITEN_bm;  // call the interrupt at a given period 
+  RTC.CLKSEL = RTC_CLKSEL_OSC32K_gc;                    // enable the lowest powererd clock as possible
+  RTC.PITINTCTRL = RTC_PI_bm;                           //
+  RTC.PITCTRLA = RTC_PERIOD_CYC1024_gc | RTC_PITEN_bm;  // call the interrupt at a given period
 
-  sei(); // Enable global interrupts  (calls the ISR function when the RTC pulses)
+  sei();  // Enable global interrupts  (calls the ISR function when the RTC pulses)
 }
 
 
@@ -108,15 +109,15 @@ After the ambient light check, and potential LED sequence, there's no need to ha
 For more or less time between sequences, change the WDT period
 */
 void powerDown() {
-  TCA0.SINGLE.CTRLA = 0;          // turn off the PWM
-  RTC.PITCTRLA = 0;               // turn off the realtime clock
+  TCA0.SINGLE.CTRLA = 0;  // turn off the PWM
+  RTC.PITCTRLA = 0;       // turn off the realtime clock
 
   // enable the watchdog timer to count down about 8 seconds and then reboot the chip
   _PROTECTED_WRITE(WDT.CTRLA, WDT_PERIOD_8KCLK_gc | WDT_WINDOW_OFF_gc);
 
   // set "Powering Down" (PDOWM) as the lowest possible state and enables sleep capabilities
   _PROTECTED_WRITE(SLPCTRL.CTRLA, SLPCTRL_SMODE_PDOWN_gc | SLPCTRL_SEN_bm);
-  asm("sleep"); // power down
+  asm("sleep");  // power down
 }
 
 
@@ -128,8 +129,8 @@ This creates the lighthouse style flash
 
 */
 ISR(RTC_PIT_vect) {
-  RTC.PITINTFLAGS = RTC_PI_bm; 
-  brightnessIndex++; // next down the line in the array sequence
+  RTC.PITINTFLAGS = RTC_PI_bm;
+  brightnessIndex++;  // next down the line in the array sequence
   if (brightnessIndex >= sizeof(brightness) / sizeof(brightness[0])) {
     // done the sequence? power down
     powerDown();
@@ -146,7 +147,7 @@ This function is to update the EEPROM with a given ambient light brightness
 void storeThreshold(uint16_t lightLevel) {
   // no need to store such a fine grain number, bring it down to a single byte
   uint8_t compressedThreshold = lightLevel / 4;  // Scale to 8-bit (0-255)
-  // Store the value 
+  // Store the value
   EEPROM.write(0, compressedThreshold);
 
   // This part is for feedback
